@@ -1,0 +1,25 @@
+default_language_version:
+  python: python3.11
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: trailing-whitespace
+        exclude: ^.*\.(lock)$||^docs\/
+      - id: mixed-line-ending
+        exclude: ^.*\.(lock)$||^docs\/
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff-format
+        args: [ --config=pyproject.toml ]
+      - id: ruff
+        args: [ --fix, --config=pyproject.toml ]
