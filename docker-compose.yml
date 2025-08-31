@@ -25,12 +25,9 @@ services:
     restart: always
     ports:
       - "6379:6379"
-    environment:
-      - REDIS_USERNAME=wikibook-user
-      - REDIS_PASSWORD=wikibook1!
     volumes:
       - redis-data:/data
-    command: redis-server --requirepass redispassword
+    command: redis-server --requirepass wikibook1!
 
   mongodb:
     image: mongo:8
