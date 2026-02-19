@@ -20,9 +20,16 @@ class S3Config(BaseModel):
     region: str = "us-east-1"
 
 
+class JwtConfig(BaseModel):
+    secret_key: str
+    algorithm: str = "HS256"
+    expire_minutes: int = 60
+
+
 class Settings(BaseSettings):
     mysql: MySQLConfig
     s3: S3Config
+    jwt: JwtConfig
 
     model_config = SettingsConfigDict(
         env_file="ch01/config/.env",

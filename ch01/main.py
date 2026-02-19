@@ -5,8 +5,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from ch01.dependencies import mysql, s3
+from ch01.routers import article, comment, user
 
 # 모든 모델을 import하여 Base.metadata에 등록
+import ch01.models.article  # noqa: F401
+import ch01.models.board  # noqa: F401
+import ch01.models.comment  # noqa: F401
+import ch01.models.jwt_blacklist  # noqa: F401
 import ch01.models.user  # noqa: F401
 
 logging.basicConfig(
@@ -34,6 +39,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(user.router)
+app.include_router(article.router)
+app.include_router(comment.router)
 
 
 @app.get(
