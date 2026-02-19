@@ -1,92 +1,162 @@
-
-
----
-
 # 위키북스 5개 DB로 서비스 만들기(책 제목 미정)
 
 ## 요구 사항(Requirements)
-### 필수 사항(Required) 
+### 필수 사항(Required)
 > 예제 코드(프로젝트) 실행을 위한 필수 요구사항입니다.
 
-- Python 3.11 이상, 3.13 이하
+- Python 3.13 이상
   - 설치: https://www.python.org/downloads/
-    - brew 사용시: `brew install python@3.11`
-- Poetry 2.1.1 이상
-  - 설치: https://python-poetry.org/docs/#installing-with-the-official-installer
-    - 공식 설치 방법을 권장합니다.
-    - <ins>**chocolatey(window), brew(macos) 등의 패키지 매니저를 통한 설치를 권장하지 않습니다.**</ins>
-      - 패키지 매니저 사용시 추후에 `poetry self update`와 같은 명령어에서 문제가 발생할 수 있습니다.
-      - 의존성(ex - python)과 관련된 문제가 발생할 수 있습니다.
-        - brew로 python, poetry를 설치하고 python을 업데이트하면 poetry가 동작하지 않을 수 있습니다.
-        - poetry 명령어는 동작하지만 기존 가상환경이 활성화되지 않거나 의도치않게 업데이트/제거될 수 있습니다.
-  - 권장 설치 플러그인: shell
-    - 설치: `poetry self add poetry-plugin-shell`
-    - 관련 문서: https://github.com/python-poetry/poetry-plugin-shell
-- Docker Desktop 4.37 이상
-  - 설치: https://www.docker.com/get-started/
-  - Docker Desktop 미사용시 고려
-    - Docker Engine 27.4 이상
-    - Docker Compose 2.31 이상
+    - brew 사용시: `brew install python@3.13`
+- uv 0.6 이상
+  - 설치: https://docs.astral.sh/uv/getting-started/installation/
+    - macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+    - Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+    - brew 사용시: `brew install uv`
+    - pip 사용시: `pip install uv`
+  - 설치 확인: `uv --version`
+  - uv는 Python 패키지 매니저로 pip, poetry를 대체합니다.
+    - 가상환경 생성, 패키지 설치, 의존성 관리를 하나의 도구로 처리합니다.
+    - Rust로 작성되어 pip 대비 10~100배 빠른 패키지 설치 속도를 제공합니다.
+- Rancher Desktop 1.22 이상
+  - 설치: https://rancherdesktop.io/
+    - brew 사용시: `brew install --cask rancher`
+  - Container Engine은 `dockerd(moby)`를 선택하면 기존 docker 명령어를 그대로 사용할 수 있습니다.
+  - 권장 리소스 설정: **CPU 4 core / Memory 6 GB**
+    - 최소: CPU 2 core / Memory 4 GB
+    - 6개 컨테이너(MySQL, Valkey, MongoDB, OpenSearch, OpenSearch Dashboards, RabbitMQ)를 동시에 실행합니다.
 - pre-commit 3.5 이상
   - 설치: https://pre-commit.com/#install
     - brew 사용시: `brew install pre-commit`
 
-  
-## 빠른 시작하기(Quick Install)
-### 전체 실행
-- FastAPI App 은 Docker Build 하고 DB와 App 모두 Docker로 실행
-```shell
-cp src/config/.env.sample src/config/.env 
-COMPOSE_PROFILES=all docker compose up -d --build
+## 프로젝트 구조(Project Structure)
+
+챕터별로 점진적으로 DB를 추가하는 구조입니다. 루트 `pyproject.toml`을 공유하며 챕터별로 독립적인 FastAPI 서버를 실행합니다.
+
+| Chapter | DB |
+|---------|------|
+| ch01 | MySQL |
+| ch02 | MySQL + OpenSearch |
+| ch03 | MySQL + OpenSearch + Valkey |
+| ch04 | MySQL + OpenSearch + Valkey + MongoDB |
+| ch05 | MySQL + OpenSearch + Valkey + MongoDB + RabbitMQ |
+
+```
+wikibook-25-db/
+├── pyproject.toml          # 공유 의존성 및 도구 설정
+├── docker-compose.yml      # DB 인프라
+├── .pre-commit-config.yaml # ruff lint + format
+├── ch01/
+│   ├── __init__.py
+│   ├── main.py             # FastAPI app
+│   ├── config/
+│   │   ├── .env.sample     # 환경변수 샘플
+│   │   └── config.py       # pydantic-settings
+│   ├── dependencies/
+│   │   └── mysql.py
+│   ├── models/
+│   │   ├── mixin.py
+│   │   └── user.py
+│   └── tests/              # __init__.py 없음
+│       ├── conftest.py
+│       └── test_health_check.py
+├── ch02/ ~ ch05/           # 동일 구조, DB 점진 추가
+└── ...
 ```
 
-### DB만 Docker 실행
-- DB는 Docker로 실행
+## 빠른 시작하기(Quick Start)
+
+### 1. DB 실행
 ```shell
 docker compose up -d
 ```
 
-### 로컬에서 FastAPI App 실행
-- DB를 모두 실행한 뒤에 FastAPI만 로컬에서 직접 실행
+### 2. 환경변수 설정
 ```shell
-# 위에서 DB만 Docker 실행한 후에 진행
-cp src/config/.env.sample src/config/.env
-poetry shell
-poetry install --no-root
-poetry run fastapi dev src/main.py
+# 사용할 챕터의 .env.sample을 .env로 복사
+cp ch01/config/.env.sample ch01/config/.env
+```
+
+### 3. 의존성 설치
+```shell
+uv sync
+```
+
+### 4. FastAPI 서버 실행
+```shell
+# 챕터별로 구분하여 실행
+uv run fastapi dev ch01/main.py
+uv run fastapi dev ch02/main.py
+uv run fastapi dev ch03/main.py
+uv run fastapi dev ch04/main.py
+uv run fastapi dev ch05/main.py
+```
+
+## uv 사용법(uv Usage)
+```shell
+# 의존성 설치 (pyproject.toml 기반, 가상환경 자동 생성)
+uv sync
+
+# 패키지 추가
+uv add <package-name>
+
+# 개발 의존성 추가
+uv add --group dev <package-name>
+
+# 패키지 제거
+uv remove <package-name>
+
+# 가상환경 내에서 명령어 실행
+uv run <command>
 ```
 
 ## DevOps
-### pre-commit
-- commit 전(=pre-commit)에 linting, formatting을 적용합니다.
+
+### Lint & Format
 ```shell
-# git hook 적용(pre commit). .git/hooks/pre-commit 파일 생성됨
+# ruff로 lint (git 추적 여부와 관계없이 모든 파일에 적용)
+uv run ruff check --fix .
+
+# ruff로 formatting
+uv run ruff format .
+```
+
+### pre-commit
+- commit 전(=pre-commit)에 ruff lint + format을 자동으로 적용합니다.
+- `pre-commit run -a`는 git에 추적(tracked)된 파일에만 실행됩니다.
+```shell
+# git hook 적용. .git/hooks/pre-commit 파일 생성됨
 pre-commit install
 
-# git hook과 상관없이 모든 파일에 대해서 linting, formatting
+# 추적된 파일 전체에 대해 linting, formatting 실행
 pre-commit run -a
 ```
 
 ### pytest
-- tests 폴더 하위에 정의된 테스트 케이스를 실행합니다.
+- 각 챕터 폴더(`chXX/tests/`) 안에 테스트 코드가 위치합니다.
+- 테스트 디렉토리에는 `__init__.py`를 사용하지 않으며, `--import-mode=importlib`로 동일 파일명 충돌을 해결합니다.
+
 ```shell
-# 전체 테스트 실행. `-n auto`은 cpu 코어 수만큼 테스트를 병렬로 실행
-poetry run pytest -n auto
+# 전체 챕터 테스트 실행
+uv run pytest ch01/tests/ ch02/tests/ ch03/tests/ ch04/tests/ ch05/tests/ -v
+
+# 특정 챕터 테스트 실행
+uv run pytest ch01/tests/ -v
 
 # 특정 파일 실행
-poetry run pytest tests/test_health_check.py
+uv run pytest ch01/tests/test_health_check.py
 
 # 특정 클래스 실행
-poetry run pytest tests/test_health_check.py::TestHealthCheck
+uv run pytest ch01/tests/test_health_check.py::TestHealthCheck
 
-# 특정 케이스(클래스내 함수) 실행
-poetry run pytest tests/test_health_check.py::TestHealthCheck::test_health_check
+# 특정 케이스 실행
+uv run pytest ch01/tests/test_health_check.py::TestHealthCheck::test_health_check
+
+# 병렬 실행 (-n auto: CPU 코어 수만큼 병렬)
+uv run pytest ch01/tests/ -n auto
 ```
 
 ### coverage
-- 테스트 커버리지를 확인합니다.
 ```shell
-poetry run pytest --cov=src --cov-report=term -n auto
-poetry run coverage html
-#poetry run pytest --cov --cov-report term --cov-report xml:coverage.xml --disable-warnings -n 5
+uv run pytest --cov=ch01 --cov-report=term ch01/tests/
+uv run coverage html
 ```

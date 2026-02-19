@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3.11
+  python: python3.13
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -16,8 +16,8 @@ repos:
       - id: mixed-line-ending
         exclude: ^.*\.(lock)$||^docs\/
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.9.9
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
     hooks:
       - id: ruff-format
         args: [ --config=pyproject.toml ]
