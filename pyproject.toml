@@ -21,6 +21,8 @@ dependencies = [
     "motor>=3.7.0",
     "aio-pika>=9.5.0",
     "cryptography>=46.0.5",
+    "httpx>=0.28.1",
+    "aioboto3>=15.5.0",
 ]
 
 [dependency-groups]

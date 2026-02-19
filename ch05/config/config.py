@@ -38,12 +38,30 @@ class RabbitMQConfig(BaseModel):
     port: int
 
 
+class ConsumerConfig(BaseModel):
+    fastapi_url: str = "http://127.0.0.1:8000"
+    exchange_name: str
+    queue_name: str
+    routing_key: str = "#"
+
+
+class S3Config(BaseModel):
+    endpoint_url: str
+    access_key: str
+    secret_key: str
+    bucket_name: str
+    region: str = "us-east-1"
+
+
 class Settings(BaseSettings):
     mysql: MySQLConfig
     opensearch: OpenSearchConfig
     valkey: ValkeyConfig
     mongodb: MongoDBConfig
     rabbitmq: RabbitMQConfig
+    consumer: ConsumerConfig
+
+    s3: S3Config
 
     model_config = SettingsConfigDict(
         env_file="ch05/config/.env",

@@ -25,3 +25,14 @@ def get_client() -> aioredis.Redis:
     `client: Redis = Depends(get_client)`로 사용
     """
     return _client
+
+
+async def startup() -> None:
+    """서버 시작 시 Valkey 연결을 확인합니다."""
+    pong = await _client.ping()
+    logger.info("Valkey 연결 완료: PING=%s", pong)
+
+
+async def shutdown() -> None:
+    """서버 종료 시 Valkey 연결 풀을 반환합니다."""
+    await _client.aclose()

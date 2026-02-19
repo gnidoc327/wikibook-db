@@ -93,9 +93,24 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI (http://localhost:9001)
+    environment:
+      MINIO_ROOT_USER: wikibook-user
+      MINIO_ROOT_PASSWORD: wikibook1!
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
 volumes:
   mysql-data:
   valkey-data:
   mongo-data:
   opensearch-data:
   rabbitmq-data:
+  minio-data:

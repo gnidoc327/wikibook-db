@@ -34,11 +34,11 @@
 
 | Chapter | DB |
 |---------|------|
-| ch01 | MySQL |
-| ch02 | MySQL + OpenSearch |
-| ch03 | MySQL + OpenSearch + Valkey |
-| ch04 | MySQL + OpenSearch + Valkey + MongoDB |
-| ch05 | MySQL + OpenSearch + Valkey + MongoDB + RabbitMQ |
+| ch01 | MySQL + S3 (MinIO) |
+| ch02 | ch01 + OpenSearch |
+| ch03 | ch02 + Valkey |
+| ch04 | ch03 + MongoDB |
+| ch05 | ch04 + RabbitMQ |
 
 ```
 wikibook-25-db/
@@ -89,6 +89,17 @@ uv run fastapi dev ch02/main.py
 uv run fastapi dev ch03/main.py
 uv run fastapi dev ch04/main.py
 uv run fastapi dev ch05/main.py
+```
+
+### 5. Consumer 실행 (ch05 전용)
+FastAPI 서버가 먼저 실행된 상태에서 별도 터미널에 실행합니다.
+```shell
+uv run python -m ch05.consumer
+```
+
+메시지 흐름:
+```
+RabbitMQ → consumer (aio-pika) → POST /internal/messages → FastAPI
 ```
 
 ## uv 사용법(uv Usage)

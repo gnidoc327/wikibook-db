@@ -28,3 +28,14 @@ def get_database() -> AsyncIOMotorDatabase:
     `db: AsyncIOMotorDatabase = Depends(get_database)`로 사용
     """
     return _database
+
+
+async def startup() -> None:
+    """서버 시작 시 MongoDB 연결을 확인합니다."""
+    result = await _database.command("ping")
+    logger.info("MongoDB 연결 완료: ping=%s", result.get("ok"))
+
+
+async def shutdown() -> None:
+    """서버 종료 시 MongoDB 연결을 닫습니다."""
+    _client.close()

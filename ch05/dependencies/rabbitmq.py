@@ -13,7 +13,7 @@ _connection: aio_pika.abc.AbstractRobustConnection | None = None
 _channel: aio_pika.abc.AbstractRobustChannel | None = None
 
 
-async def connect():
+async def startup() -> None:
     """서버 시작 시 RabbitMQ에 연결합니다."""
     global _connection, _channel
     _connection = await aio_pika.connect_robust(
@@ -28,7 +28,7 @@ async def connect():
     logger.info("RabbitMQ 연결 완료")
 
 
-async def disconnect():
+async def shutdown() -> None:
     """서버 종료 시 RabbitMQ 연결을 닫습니다."""
     global _connection, _channel
     if _channel:

@@ -17,9 +17,19 @@ class OpenSearchConfig(BaseModel):
     port: int
 
 
+class S3Config(BaseModel):
+    endpoint_url: str
+    access_key: str
+    secret_key: str
+    bucket_name: str
+    region: str = "us-east-1"
+
+
 class Settings(BaseSettings):
     mysql: MySQLConfig
     opensearch: OpenSearchConfig
+
+    s3: S3Config
 
     model_config = SettingsConfigDict(
         env_file="ch02/config/.env",
