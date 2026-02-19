@@ -26,10 +26,17 @@ class JwtConfig(BaseModel):
     expire_minutes: int = 60
 
 
+class AdminConfig(BaseModel):
+    username: str = "admin"
+    email: str = "admin@localhost"
+    password: str
+
+
 class Settings(BaseSettings):
     mysql: MySQLConfig
     s3: S3Config
     jwt: JwtConfig
+    admin: AdminConfig
 
     model_config = SettingsConfigDict(
         env_file="ch01/config/.env",

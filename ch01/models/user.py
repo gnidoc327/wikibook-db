@@ -21,7 +21,7 @@ class User(Base, BaseMixin):
     username = Column(String(50), unique=True, nullable=False, comment="사용자명")
     email = Column(String(100), unique=True, nullable=False, comment="이메일")
     hashed_password = Column(String(100), comment="암호화된 비밀번호")
-    role = Column(Enum(UserRole), default=UserRole.guest, comment="권한")
+    role = Column(Enum(UserRole), default=UserRole.member, comment="권한")
     last_login = Column(DateTime, nullable=True, comment="마지막 로그인 시간")
 
     def set_password(self, plain_password: str) -> None:

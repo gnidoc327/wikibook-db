@@ -48,6 +48,10 @@ class UserResponse(BaseModel):
     created_at: datetime | None
 
 
+class UpdateRoleRequest(BaseModel):
+    role: UserRole
+
+
 @router.get("", response_model=list[UserResponse])
 async def get_users(
     _current_user: User = Depends(get_current_user),
@@ -62,7 +66,7 @@ async def sign_up(
     body: SignUpRequest,
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    user = User(username=body.username, email=body.email)
+    user = User(username=body.username, email=body.email, role=UserRole.member)
     user.set_password(body.password)
     session.add(user)
     try:
@@ -181,3 +185,26 @@ async def validate_token(
         raise HTTPException(status_code=403, detail="Invalid token") from e
 
     return "ok"
+
+
+@router.patch("/{user_id}/role", response_model=UserResponse)
+async def update_user_role(
+    user_id: int,
+    body: UpdateRoleRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """유저 권한 변경 (admin 전용)"""
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=403, detail="관리자만 권한을 변경할 수 있습니다."
+        )
+    user = await session.scalar(
+        select(User).where(User.id == user_id, User.is_deleted == False)
+    )
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.role = body.role
+    await session.commit()
+    await session.refresh(user)
+    return user
