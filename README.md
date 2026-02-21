@@ -154,6 +154,7 @@ uv run pytest ch01/tests/ -v
 uv run pytest ch02/tests/ -v
 uv run pytest ch03/tests/ -v
 uv run pytest ch04/tests/ -v
+uv run pytest ch05/tests/ -v
 
 # 특정 파일 실행
 uv run pytest ch01/tests/test_health_check.py
