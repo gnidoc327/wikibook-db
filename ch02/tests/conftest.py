@@ -35,12 +35,15 @@ async def init_db():
     import ch02.models.comment  # noqa: F401
     import ch02.models.jwt_blacklist  # noqa: F401
     import ch02.models.user  # noqa: F401
-    from ch02.dependencies.mysql import Base, _engine
+    from ch02.dependencies.mysql import Base, _engine, shutdown as mysql_shutdown
+    from ch02.dependencies.opensearch import shutdown as opensearch_shutdown
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
+    await opensearch_shutdown()
+    await mysql_shutdown()
 
 
 @pytest.fixture
