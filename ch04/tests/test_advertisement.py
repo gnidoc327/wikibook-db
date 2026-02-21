@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestWriteAd:
@@ -96,20 +97,21 @@ class TestGetAd:
         assert response1.json()["title"] == response2.json()["title"]
 
     async def test_valkey_cache_populated_after_db_read(
-        self, api_client: httpx.AsyncClient, admin_headers: dict
+        self,
+        api_client: httpx.AsyncClient,
+        admin_headers: dict,
+        db_session: AsyncSession,
     ):
         """Valkey 캐시가 없을 때 DB에서 조회 후 Valkey에 저장됩니다."""
-        from ch04.dependencies.mysql import _async_session
         from ch04.dependencies.valkey import _client as valkey_client
         from ch04.models.advertisement import Advertisement
 
         # DB에 직접 삽입 (Valkey 캐시 없음)
-        async with _async_session() as session:
-            ad = Advertisement(title="DB 전용 광고", content="내용")
-            session.add(ad)
-            await session.commit()
-            await session.refresh(ad)
-            ad_id = ad.id
+        ad = Advertisement(title="DB 전용 광고", content="내용")
+        db_session.add(ad)
+        await db_session.flush()
+        await db_session.refresh(ad)
+        ad_id = ad.id
 
         # 캐시 없음 확인
         cached = await valkey_client.get(f"ad:{ad_id}")
@@ -146,7 +148,11 @@ class TestGetAd:
         assert count == 1
 
     async def test_view_history_with_authenticated_user(
-        self, api_client: httpx.AsyncClient, admin_headers: dict, member_headers: dict
+        self,
+        api_client: httpx.AsyncClient,
+        admin_headers: dict,
+        member_headers: dict,
+        member: dict,
     ):
         """인증된 사용자의 조회 기록에는 username이 포함됩니다."""
         from ch04.dependencies.mongodb import _database as mongo_db
@@ -162,7 +168,7 @@ class TestGetAd:
 
         doc = await mongo_db["adViewHistory"].find_one({"ad_id": ad_id})
         assert doc is not None
-        assert doc["username"] == "testmember"
+        assert doc["username"] == member["username"]
 
     async def test_view_history_anonymous_user(
         self, api_client: httpx.AsyncClient, admin_headers: dict
@@ -213,6 +219,7 @@ class TestClickAd:
         api_client: httpx.AsyncClient,
         admin_headers: dict,
         member_headers: dict,
+        member: dict,
     ):
         """인증된 사용자의 클릭 기록에는 username이 포함됩니다."""
         from ch04.dependencies.mongodb import _database as mongo_db
@@ -228,7 +235,7 @@ class TestClickAd:
 
         doc = await mongo_db["adClickHistory"].find_one({"ad_id": ad_id})
         assert doc is not None
-        assert doc["username"] == "testmember"
+        assert doc["username"] == member["username"]
 
 
 class TestAdViewHistory:

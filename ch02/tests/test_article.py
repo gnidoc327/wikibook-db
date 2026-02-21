@@ -1,4 +1,5 @@
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestWriteArticle:
@@ -57,23 +58,40 @@ class TestWriteArticle:
 
 
 class TestGetArticles:
-    async def test_empty_board(self, api_client: httpx.AsyncClient, board_id: int):
-        response = await api_client.get(f"/boards/{board_id}/articles")
+    async def test_empty_board(
+        self, api_client: httpx.AsyncClient, db_session: AsyncSession
+    ):
+        """빈 게시판 조회 시 빈 목록을 반환합니다."""
+        from ch02.models.board import Board
+
+        board = Board(title="빈 게시판", description="빈 게시판 설명")
+        db_session.add(board)
+        await db_session.flush()
+
+        response = await api_client.get(f"/boards/{board.id}/articles")
         assert response.status_code == 200
         assert response.json() == []
 
     async def test_returns_articles(
         self,
         api_client: httpx.AsyncClient,
-        board_id: int,
+        db_session: AsyncSession,
         member_headers: dict,
     ):
+        """게시글이 있는 게시판 조회 시 목록을 반환합니다."""
+        from ch02.models.board import Board
+
+        board = Board(title="새 게시판", description="새 게시판 설명")
+        db_session.add(board)
+        await db_session.flush()
+        new_board_id = board.id
+
         await api_client.post(
-            f"/boards/{board_id}/articles",
+            f"/boards/{new_board_id}/articles",
             json={"title": "게시글1", "content": "내용1"},
             headers=member_headers,
         )
-        response = await api_client.get(f"/boards/{board_id}/articles")
+        response = await api_client.get(f"/boards/{new_board_id}/articles")
         assert response.status_code == 200
         articles = response.json()
         assert len(articles) == 1
@@ -84,59 +102,61 @@ class TestGetArticles:
         api_client: httpx.AsyncClient,
         board_id: int,
         member: dict,
+        db_session: AsyncSession,
     ):
         """last_id 기준으로 이전 페이지(오래된 글)를 조회합니다."""
-        from ch02.dependencies.mysql import _async_session
-        from ch02.models.article import Article
         from sqlalchemy import select
 
-        async with _async_session() as session:
-            for i in range(3):
-                session.add(
-                    Article(
-                        title=f"게시글{i + 1}",
-                        content="내용",
-                        author_id=member["id"],
-                        board_id=board_id,
-                    )
-                )
-            await session.commit()
-            result = await session.scalars(
-                select(Article).where(Article.board_id == board_id).order_by(Article.id)
-            )
-            ids = [a.id for a in result.all()]
+        from ch02.models.article import Article
 
-        response = await api_client.get(f"/boards/{board_id}/articles?last_id={ids[2]}")
+        for i in range(3):
+            db_session.add(
+                Article(
+                    title=f"게시글{i + 1}",
+                    content="내용",
+                    author_id=member["id"],
+                    board_id=board_id,
+                )
+            )
+        await db_session.flush()
+        result = await db_session.scalars(
+            select(Article).where(Article.board_id == board_id).order_by(Article.id)
+        )
+        ids = [a.id for a in result.all()]
+
+        response = await api_client.get(
+            f"/boards/{board_id}/articles?last_id={ids[-1]}"
+        )
         assert response.status_code == 200
         articles = response.json()
-        assert all(a["id"] < ids[2] for a in articles)
+        assert all(a["id"] < ids[-1] for a in articles)
 
     async def test_pagination_first_id(
         self,
         api_client: httpx.AsyncClient,
         board_id: int,
         member: dict,
+        db_session: AsyncSession,
     ):
         """first_id 기준으로 이후 페이지(최신 글)를 조회합니다."""
-        from ch02.dependencies.mysql import _async_session
-        from ch02.models.article import Article
         from sqlalchemy import select
 
-        async with _async_session() as session:
-            for i in range(3):
-                session.add(
-                    Article(
-                        title=f"게시글{i + 1}",
-                        content="내용",
-                        author_id=member["id"],
-                        board_id=board_id,
-                    )
+        from ch02.models.article import Article
+
+        for i in range(3):
+            db_session.add(
+                Article(
+                    title=f"게시글{i + 1}",
+                    content="내용",
+                    author_id=member["id"],
+                    board_id=board_id,
                 )
-            await session.commit()
-            result = await session.scalars(
-                select(Article).where(Article.board_id == board_id).order_by(Article.id)
             )
-            ids = [a.id for a in result.all()]
+        await db_session.flush()
+        result = await db_session.scalars(
+            select(Article).where(Article.board_id == board_id).order_by(Article.id)
+        )
+        ids = [a.id for a in result.all()]
 
         response = await api_client.get(
             f"/boards/{board_id}/articles?first_id={ids[0]}"
@@ -150,22 +170,21 @@ class TestGetArticles:
         api_client: httpx.AsyncClient,
         board_id: int,
         member: dict,
+        db_session: AsyncSession,
     ):
         """최대 10개까지만 반환합니다."""
-        from ch02.dependencies.mysql import _async_session
         from ch02.models.article import Article
 
-        async with _async_session() as session:
-            for i in range(12):
-                session.add(
-                    Article(
-                        title=f"게시글{i + 1}",
-                        content="내용",
-                        author_id=member["id"],
-                        board_id=board_id,
-                    )
+        for i in range(12):
+            db_session.add(
+                Article(
+                    title=f"게시글{i + 1}",
+                    content="내용",
+                    author_id=member["id"],
+                    board_id=board_id,
                 )
-            await session.commit()
+            )
+        await db_session.flush()
 
         response = await api_client.get(f"/boards/{board_id}/articles")
         assert response.status_code == 200
@@ -178,16 +197,15 @@ class TestGetArticle:
         api_client: httpx.AsyncClient,
         board_id: int,
         article_id: int,
+        db_session: AsyncSession,
     ):
         # 댓글 직접 삽입 (댓글 작성 rate limit 우회)
-        from ch02.dependencies.mysql import _async_session
         from ch02.models.comment import Comment
 
-        async with _async_session() as session:
-            session.add(
-                Comment(content="테스트 댓글", author_id=1, article_id=article_id)
-            )
-            await session.commit()
+        db_session.add(
+            Comment(content="테스트 댓글", author_id=1, article_id=article_id)
+        )
+        await db_session.flush()
 
         response = await api_client.get(f"/boards/{board_id}/articles/{article_id}")
         assert response.status_code == 200
@@ -216,24 +234,23 @@ class TestSearchArticles:
         api_client: httpx.AsyncClient,
         board_id: int,
         member: dict,
+        db_session: AsyncSession,
     ):
         """OpenSearch content 필드 키워드 검색이 동작합니다."""
-        from ch02.dependencies.mysql import _async_session
         from ch02.dependencies.opensearch import _client as os_client
         from ch02.models.article import Article
 
         # DB에 직접 삽입 후 OpenSearch에도 인덱싱
-        async with _async_session() as session:
-            article = Article(
-                title="파이썬 게시글",
-                content="파이썬과 FastAPI 를 사용한 게시판",
-                author_id=member["id"],
-                board_id=board_id,
-            )
-            session.add(article)
-            await session.commit()
-            await session.refresh(article)
-            article_id = article.id
+        article = Article(
+            title="파이썬 게시글",
+            content="파이썬과 FastAPI 를 사용한 게시판",
+            author_id=member["id"],
+            board_id=board_id,
+        )
+        db_session.add(article)
+        await db_session.flush()
+        await db_session.refresh(article)
+        article_id = article.id
 
         await os_client.index(
             index="article",

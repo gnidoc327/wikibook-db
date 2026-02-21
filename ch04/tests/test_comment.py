@@ -1,4 +1,5 @@
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestWriteComment:
@@ -88,21 +89,19 @@ class TestEditComment:
         article_id: int,
         member_headers: dict,
         member: dict,
+        db_session: AsyncSession,
     ):
         # Valkey rate limit 우회를 위해 DB에 직접 삽입 (API 호출 없음)
-        from ch04.dependencies.mysql import _async_session
         from ch04.models.comment import Comment
 
-        async with _async_session() as session:
-            comment = Comment(
-                content="수정 전 댓글",
-                author_id=member["id"],
-                article_id=article_id,
-            )
-            session.add(comment)
-            await session.commit()
-            await session.refresh(comment)
-            comment_id = comment.id
+        comment = Comment(
+            content="수정 전 댓글",
+            author_id=member["id"],
+            article_id=article_id,
+        )
+        db_session.add(comment)
+        await db_session.flush()
+        comment_id = comment.id
 
         response = await api_client.put(
             f"/boards/{board_id}/articles/{article_id}/comments/{comment_id}",
@@ -193,21 +192,19 @@ class TestDeleteComment:
         article_id: int,
         member_headers: dict,
         member: dict,
+        db_session: AsyncSession,
     ):
         # Valkey rate limit 우회를 위해 DB에 직접 삽입 (API 호출 없음)
-        from ch04.dependencies.mysql import _async_session
         from ch04.models.comment import Comment
 
-        async with _async_session() as session:
-            comment = Comment(
-                content="삭제할 댓글",
-                author_id=member["id"],
-                article_id=article_id,
-            )
-            session.add(comment)
-            await session.commit()
-            await session.refresh(comment)
-            comment_id = comment.id
+        comment = Comment(
+            content="삭제할 댓글",
+            author_id=member["id"],
+            article_id=article_id,
+        )
+        db_session.add(comment)
+        await db_session.flush()
+        comment_id = comment.id
 
         response = await api_client.delete(
             f"/boards/{board_id}/articles/{article_id}/comments/{comment_id}",

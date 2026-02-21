@@ -1,4 +1,5 @@
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestWriteComment:
@@ -88,30 +89,32 @@ class TestEditComment:
         article_id: int,
         member_headers: dict,
         member: dict,
+        db_session: AsyncSession,
     ):
-        # rate limit 우회를 위해 DB에 직접 삽입 후 타임스탬프 백데이트
-        from ch02.dependencies.mysql import _async_session
-        from ch02.models.comment import Comment
+        # rate limit 우회를 위해 savepoint 세션으로 직접 삽입 후 타임스탬프 백데이트
         from sqlalchemy import text
 
-        async with _async_session() as session:
-            comment = Comment(
-                content="수정 전 댓글",
-                author_id=member["id"],
-                article_id=article_id,
-            )
-            session.add(comment)
-            await session.commit()
-            await session.refresh(comment)
-            comment_id = comment.id
-            await session.execute(
-                text(
-                    "UPDATE comment SET updated_at = NOW() - INTERVAL 2 MINUTE"
-                    " WHERE id = :id"
-                ),
-                {"id": comment_id},
-            )
-            await session.commit()
+        from ch02.models.comment import Comment
+
+        comment = Comment(
+            content="수정 전 댓글",
+            author_id=member["id"],
+            article_id=article_id,
+        )
+        db_session.add(comment)
+        await db_session.flush()
+        comment_id = comment.id
+        await db_session.execute(
+            text(
+                "UPDATE comment SET updated_at = NOW() - INTERVAL 2 MINUTE"
+                " WHERE id = :id"
+            ),
+            {"id": comment_id},
+        )
+        await db_session.flush()
+        db_session.expire(
+            comment
+        )  # identity map 갱신 → route handler가 최신 updated_at 조회
 
         response = await api_client.put(
             f"/boards/{board_id}/articles/{article_id}/comments/{comment_id}",
@@ -194,30 +197,32 @@ class TestDeleteComment:
         article_id: int,
         member_headers: dict,
         member: dict,
+        db_session: AsyncSession,
     ):
-        # rate limit 우회를 위해 DB에 직접 삽입 후 타임스탬프 백데이트
-        from ch02.dependencies.mysql import _async_session
-        from ch02.models.comment import Comment
+        # rate limit 우회를 위해 savepoint 세션으로 직접 삽입 후 타임스탬프 백데이트
         from sqlalchemy import text
 
-        async with _async_session() as session:
-            comment = Comment(
-                content="삭제할 댓글",
-                author_id=member["id"],
-                article_id=article_id,
-            )
-            session.add(comment)
-            await session.commit()
-            await session.refresh(comment)
-            comment_id = comment.id
-            await session.execute(
-                text(
-                    "UPDATE comment SET updated_at = NOW() - INTERVAL 2 MINUTE"
-                    " WHERE id = :id"
-                ),
-                {"id": comment_id},
-            )
-            await session.commit()
+        from ch02.models.comment import Comment
+
+        comment = Comment(
+            content="삭제할 댓글",
+            author_id=member["id"],
+            article_id=article_id,
+        )
+        db_session.add(comment)
+        await db_session.flush()
+        comment_id = comment.id
+        await db_session.execute(
+            text(
+                "UPDATE comment SET updated_at = NOW() - INTERVAL 2 MINUTE"
+                " WHERE id = :id"
+            ),
+            {"id": comment_id},
+        )
+        await db_session.flush()
+        db_session.expire(
+            comment
+        )  # identity map 갱신 → route handler가 최신 updated_at 조회
 
         response = await api_client.delete(
             f"/boards/{board_id}/articles/{article_id}/comments/{comment_id}",

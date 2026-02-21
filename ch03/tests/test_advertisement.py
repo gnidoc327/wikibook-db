@@ -1,4 +1,5 @@
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestWriteAd:
@@ -94,20 +95,21 @@ class TestGetAd:
         assert response1.json()["title"] == response2.json()["title"]
 
     async def test_valkey_cache_populated_after_db_read(
-        self, api_client: httpx.AsyncClient, admin_headers: dict
+        self,
+        api_client: httpx.AsyncClient,
+        admin_headers: dict,
+        db_session: AsyncSession,
     ):
         """Valkey 캐시가 없을 때 DB에서 조회 후 Valkey에 저장됩니다."""
-        from ch03.dependencies.mysql import _async_session
         from ch03.dependencies.valkey import _client as valkey_client
         from ch03.models.advertisement import Advertisement
 
         # DB에 직접 삽입 (Valkey 캐시 없음)
-        async with _async_session() as session:
-            ad = Advertisement(title="DB 전용 광고", content="내용")
-            session.add(ad)
-            await session.commit()
-            await session.refresh(ad)
-            ad_id = ad.id
+        ad = Advertisement(title="DB 전용 광고", content="내용")
+        db_session.add(ad)
+        await db_session.flush()
+        await db_session.refresh(ad)
+        ad_id = ad.id
 
         # 캐시 없음 확인
         cached = await valkey_client.get(f"ad:{ad_id}")

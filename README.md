@@ -145,13 +145,15 @@ pre-commit run -a
 ### pytest
 - 각 챕터 폴더(`chXX/tests/`) 안에 테스트 코드가 위치합니다.
 - 테스트 디렉토리에는 `__init__.py`를 사용하지 않으며, `--import-mode=importlib`로 동일 파일명 충돌을 해결합니다.
+- `pyproject.toml` addopts에 `-n auto --dist=loadfile`이 설정되어 **챕터 내 병렬 실행이 기본**입니다.
+- **챕터별로 따로 실행**해야 합니다. 여러 챕터를 동시에 실행하면 MySQL DDL 충돌이 발생합니다.
 
 ```shell
-# 전체 챕터 테스트 실행
-uv run pytest ch01/tests/ ch02/tests/ ch03/tests/ ch04/tests/ ch05/tests/ -v
-
-# 특정 챕터 테스트 실행
+# 챕터별 테스트 실행 (권장)
 uv run pytest ch01/tests/ -v
+uv run pytest ch02/tests/ -v
+uv run pytest ch03/tests/ -v
+uv run pytest ch04/tests/ -v
 
 # 특정 파일 실행
 uv run pytest ch01/tests/test_health_check.py
@@ -161,9 +163,6 @@ uv run pytest ch01/tests/test_health_check.py::TestHealthCheck
 
 # 특정 케이스 실행
 uv run pytest ch01/tests/test_health_check.py::TestHealthCheck::test_health_check
-
-# 병렬 실행 (-n auto: CPU 코어 수만큼 병렬)
-uv run pytest ch01/tests/ -n auto
 ```
 
 ### coverage
