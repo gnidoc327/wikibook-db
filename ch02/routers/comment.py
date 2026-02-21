@@ -6,11 +6,11 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ch01.dependencies.auth import get_current_user
-from ch01.dependencies.mysql import get_session
-from ch01.models.article import Article
-from ch01.models.comment import Comment
-from ch01.models.user import User
+from ch02.dependencies.auth import get_current_user
+from ch02.dependencies.mysql import get_session
+from ch02.models.article import Article
+from ch02.models.comment import Comment
+from ch02.models.user import User
 
 logger = logging.getLogger(__name__)
 

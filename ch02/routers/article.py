@@ -3,20 +3,24 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from opensearchpy import AsyncOpenSearch
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ch01.dependencies.auth import get_current_user
-from ch01.dependencies.mysql import get_session
-from ch01.models.article import Article
-from ch01.models.board import Board
-from ch01.models.comment import Comment
-from ch01.models.user import User
+from ch02.dependencies.auth import get_current_user
+from ch02.dependencies.mysql import get_session
+from ch02.dependencies.opensearch import get_client
+from ch02.models.article import Article
+from ch02.models.board import Board
+from ch02.models.comment import Comment
+from ch02.models.user import User
 
 logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
+
+ARTICLE_INDEX = "article"
 
 router = APIRouter(prefix="/boards/{board_id}/articles", tags=["Articles"])
 
@@ -90,12 +94,70 @@ async def _check_edit_rate_limit(author_id: int, session: AsyncSession) -> None:
             )
 
 
+async def _index_article(client: AsyncOpenSearch, article: Article) -> None:
+    """게시글을 OpenSearch에 인덱싱합니다."""
+    await client.index(
+        index=ARTICLE_INDEX,
+        id=str(article.id),
+        body={
+            "title": article.title,
+            "content": article.content,
+            "board_id": article.board_id,
+            "author_id": article.author_id,
+        },
+    )
+
+
+async def _delete_index(client: AsyncOpenSearch, article_id: int) -> None:
+    """OpenSearch에서 게시글 문서를 삭제합니다."""
+    try:
+        await client.delete(index=ARTICLE_INDEX, id=str(article_id))
+    except Exception:
+        logger.warning("OpenSearch 문서 삭제 실패: article_id=%d", article_id)
+
+
+# 검색 라우트는 /{article_id} 보다 먼저 등록해야 합니다.
+@router.get("/search", response_model=list[ArticleResponse])
+async def search_articles(
+    board_id: int,
+    keyword: str = Query(..., description="검색 키워드"),
+    session: AsyncSession = Depends(get_session),
+    client: AsyncOpenSearch = Depends(get_client),
+) -> list[Article]:
+    """OpenSearch를 사용하여 게시글 content 필드에서 키워드를 검색합니다."""
+    response = await client.search(
+        index=ARTICLE_INDEX,
+        body={
+            "query": {
+                "bool": {
+                    "must": {"match": {"content": keyword}},
+                    "filter": {"term": {"board_id": board_id}},
+                }
+            }
+        },
+    )
+    hits = response["hits"]["hits"]
+    if not hits:
+        return []
+
+    article_ids = [int(hit["_id"]) for hit in hits]
+    result = await session.scalars(
+        select(Article).where(
+            Article.id.in_(article_ids),
+            Article.board_id == board_id,
+            Article.is_deleted == False,
+        )
+    )
+    return list(result.all())
+
+
 @router.post("", response_model=ArticleResponse, status_code=201)
 async def write_article(
     board_id: int,
     body: WriteArticleRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    client: AsyncOpenSearch = Depends(get_client),
 ) -> Article:
     board = await session.scalar(
         select(Board).where(Board.id == board_id, Board.is_deleted == False)
@@ -114,6 +176,9 @@ async def write_article(
     session.add(article)
     await session.commit()
     await session.refresh(article)
+
+    await _index_article(client, article)
+
     return article
 
 
@@ -183,6 +248,7 @@ async def edit_article(
     body: EditArticleRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    client: AsyncOpenSearch = Depends(get_client),
 ) -> Article:
     await _check_edit_rate_limit(current_user.id, session)
 
@@ -208,6 +274,9 @@ async def edit_article(
 
     await session.commit()
     await session.refresh(article)
+
+    await _index_article(client, article)
+
     return article
 
 
@@ -217,6 +286,7 @@ async def delete_article(
     article_id: int,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    client: AsyncOpenSearch = Depends(get_client),
 ) -> str:
     await _check_edit_rate_limit(current_user.id, session)
 
@@ -234,4 +304,7 @@ async def delete_article(
 
     article.soft_delete()
     await session.commit()
+
+    await _delete_index(client, article_id)
+
     return "article is deleted"

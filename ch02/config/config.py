@@ -25,11 +25,24 @@ class S3Config(BaseModel):
     region: str = "us-east-1"
 
 
+class JwtConfig(BaseModel):
+    secret_key: str
+    algorithm: str = "HS256"
+    expire_minutes: int = 60
+
+
+class AdminConfig(BaseModel):
+    username: str = "admin"
+    email: str = "admin@localhost"
+    password: str
+
+
 class Settings(BaseSettings):
     mysql: MySQLConfig
     opensearch: OpenSearchConfig
-
     s3: S3Config
+    jwt: JwtConfig
+    admin: AdminConfig
 
     model_config = SettingsConfigDict(
         env_file="ch02/config/.env",
