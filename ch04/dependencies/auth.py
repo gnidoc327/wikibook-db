@@ -32,7 +32,7 @@ async def get_current_user(
     try:
         scheme, token = authorization.split(" ", 1)
         if scheme.lower() != "bearer":
-            raise HTTPException(status_code=422, detail="Invalid authentication scheme")
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme")
     except ValueError as e:
         raise HTTPException(
             status_code=422, detail="Invalid authorization header format"
@@ -66,10 +66,10 @@ async def get_optional_user(
     session: AsyncSession = Depends(get_session),
     client: aioredis.Redis = Depends(get_client),
 ) -> User | None:
-    """인증이 선택적인 엔드포인트에서 사용합니다. 미인증이면 None을 반환합니다."""
+    """인증이 선택적인 엔드포인트에서 사용합니다.
+    Authorization 헤더가 없으면 None을 반환하고,
+    헤더가 있으면 유효성을 검증합니다 (만료/폐기된 토큰은 401 반환).
+    """
     if authorization is None:
         return None
-    try:
-        return await get_current_user(authorization, session, client)
-    except HTTPException:
-        return None
+    return await get_current_user(authorization, session, client)

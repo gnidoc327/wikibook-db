@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import redis.asyncio as aioredis
@@ -20,6 +20,7 @@ from ch04.models.user import User, UserRole
 logger = logging.getLogger(__name__)
 
 _AD_CACHE_KEY = "ad:{ad_id}"
+_AD_CACHE_TTL = 3600  # 1시간
 _VIEW_HISTORY = "adViewHistory"
 _CLICK_HISTORY = "adClickHistory"
 
@@ -74,10 +75,11 @@ def _ad_to_dict(ad: Advertisement) -> dict:
 
 
 def _yesterday_range() -> tuple[datetime, datetime]:
-    """어제 09:00 ~ 오늘 09:00 범위를 반환합니다 (KST 기준)."""
-    start = datetime.combine(date.today() - timedelta(days=1), time(9, 0, 0))
-    end = datetime.combine(date.today(), time(9, 0, 0))
-    return start, end
+    """어제 00:00 ~ 오늘 00:00 범위를 반환합니다 (UTC 기준)."""
+    today = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+    )
+    return today - timedelta(days=1), today
 
 
 async def _get_history_stats(
@@ -184,7 +186,9 @@ async def write_ad(
     await session.commit()
     await session.refresh(ad)
 
-    await valkey.set(_AD_CACHE_KEY.format(ad_id=ad.id), json.dumps(_ad_to_dict(ad)))
+    await valkey.setex(
+        _AD_CACHE_KEY.format(ad_id=ad.id), _AD_CACHE_TTL, json.dumps(_ad_to_dict(ad))
+    )
 
     return ad
 
@@ -210,7 +214,25 @@ async def get_ad(
     valkey: aioredis.Redis = Depends(get_valkey_client),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> AdResponse:
-    """광고 단건 조회. Valkey 캐시 우선 조회 + MongoDB에 조회 히스토리 기록."""
+    """광고 단건 조회. 광고 존재 확인 후 Valkey 캐시 조회 + MongoDB에 조회 히스토리 기록."""
+    key = _AD_CACHE_KEY.format(ad_id=ad_id)
+    cached = await valkey.get(key)
+    if cached:
+        logger.debug("광고 캐시 히트: ad_id=%d", ad_id)
+        ad_response = AdResponse(**json.loads(cached))
+    else:
+        ad = await session.scalar(
+            select(Advertisement).where(
+                Advertisement.id == ad_id,
+                Advertisement.is_deleted == False,
+            )
+        )
+        if ad is None:
+            raise HTTPException(status_code=404, detail="Advertisement not found")
+
+        await valkey.setex(key, _AD_CACHE_TTL, json.dumps(_ad_to_dict(ad)))
+        ad_response = AdResponse.model_validate(ad)
+
     username = current_user.username if current_user else None
     await db[_VIEW_HISTORY].insert_one(
         {
@@ -218,27 +240,10 @@ async def get_ad(
             "username": username,
             "client_ip": request.client.host,
             "is_true_view": is_true_view,
-            "created_date": datetime.now(),
+            "created_date": datetime.now(timezone.utc).replace(tzinfo=None),
         }
     )
-
-    key = _AD_CACHE_KEY.format(ad_id=ad_id)
-    cached = await valkey.get(key)
-    if cached:
-        logger.debug("광고 캐시 히트: ad_id=%d", ad_id)
-        return AdResponse(**json.loads(cached))
-
-    ad = await session.scalar(
-        select(Advertisement).where(
-            Advertisement.id == ad_id,
-            Advertisement.is_deleted == False,
-        )
-    )
-    if ad is None:
-        raise HTTPException(status_code=404, detail="Advertisement not found")
-
-    await valkey.set(key, json.dumps(_ad_to_dict(ad)))
-    return ad
+    return ad_response
 
 
 @router.post("/{ad_id}/click")
@@ -265,7 +270,7 @@ async def click_ad(
             "ad_id": ad_id,
             "username": username,
             "client_ip": request.client.host,
-            "created_date": datetime.now(),
+            "created_date": datetime.now(timezone.utc).replace(tzinfo=None),
         }
     )
     return "click"

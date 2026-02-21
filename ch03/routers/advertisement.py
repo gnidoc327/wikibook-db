@@ -18,6 +18,7 @@ from ch03.models.user import User, UserRole
 logger = logging.getLogger(__name__)
 
 _AD_CACHE_KEY = "ad:{ad_id}"
+_AD_CACHE_TTL = 3600  # 1시간
 
 router = APIRouter(prefix="/ads", tags=["Advertisements"])
 
@@ -90,7 +91,9 @@ async def write_ad(
     await session.commit()
     await session.refresh(ad)
 
-    await valkey.set(_AD_CACHE_KEY.format(ad_id=ad.id), json.dumps(_ad_to_dict(ad)))
+    await valkey.setex(
+        _AD_CACHE_KEY.format(ad_id=ad.id), _AD_CACHE_TTL, json.dumps(_ad_to_dict(ad))
+    )
 
     return ad
 
@@ -129,5 +132,5 @@ async def get_ad(
     if ad is None:
         raise HTTPException(status_code=404, detail="Advertisement not found")
 
-    await valkey.set(key, json.dumps(_ad_to_dict(ad)))
+    await valkey.setex(key, _AD_CACHE_TTL, json.dumps(_ad_to_dict(ad)))
     return ad

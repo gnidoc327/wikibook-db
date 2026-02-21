@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -244,9 +244,9 @@ class TestAdViewHistory:
         """MongoDB에 어제 날짜 데이터를 직접 삽입하면 집계 결과에 포함됩니다."""
         from ch04.dependencies.mongodb import _database as mongo_db
 
-        yesterday_start = datetime.combine(
-            date.today() - timedelta(days=1), time(9, 0, 0)
-        )
+        yesterday_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+        ) - timedelta(days=1)
 
         # 어제 날짜로 직접 삽입 (로그인 유저 2명, 익명 1명)
         await mongo_db["adViewHistory"].insert_many(
@@ -296,9 +296,9 @@ class TestAdClickHistory:
         """MongoDB에 어제 날짜 클릭 데이터를 직접 삽입하면 집계 결과에 포함됩니다."""
         from ch04.dependencies.mongodb import _database as mongo_db
 
-        yesterday_start = datetime.combine(
-            date.today() - timedelta(days=1), time(9, 0, 0)
-        )
+        yesterday_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+        ) - timedelta(days=1)
 
         # 중복 포함 (같은 user1이 2번 클릭 → unique 1명으로 집계)
         await mongo_db["adClickHistory"].insert_many(

@@ -32,7 +32,7 @@ async def get_current_user(
     try:
         scheme, token = authorization.split(" ", 1)
         if scheme.lower() != "bearer":
-            raise HTTPException(status_code=422, detail="Invalid authentication scheme")
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme")
     except ValueError as e:
         raise HTTPException(
             status_code=422, detail="Invalid authorization header format"
