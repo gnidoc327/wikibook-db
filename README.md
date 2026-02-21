@@ -45,6 +45,7 @@ wikibook-25-db/
 ├── pyproject.toml          # 공유 의존성 및 도구 설정
 ├── docker-compose.yml      # DB 인프라
 ├── .pre-commit-config.yaml # ruff lint + format
+├── conftest.py             # 다중 챕터 동시 실행 방지
 ├── ch01/
 │   ├── __init__.py
 │   ├── main.py             # FastAPI app
@@ -59,8 +60,10 @@ wikibook-25-db/
 │   └── tests/              # __init__.py 없음
 │       ├── conftest.py
 │       └── test_health_check.py
-├── ch02/ ~ ch05/           # 동일 구조, DB 점진 추가
-└── ...
+├── ch02/ ~ ch04/           # 동일 구조, DB 점진 추가
+└── ch05/                   # ch04 + RabbitMQ
+    └── consumer.py         # RabbitMQ 컨슈머 (ch05 전용, 별도 실행)
+...
 ```
 
 ## 빠른 시작하기(Quick Start)
